@@ -2,6 +2,7 @@ from datetime import datetime, date
 import pytest
 
 from licit.domain.licitacion.models import Licitacion, Lote, OrganismoLicitacion
+from licit.domain.events import LoteDesmarcadoParaPresentar, LoteMarcadoParaPresentar
 
 
 def test_crear_licitacion_sin_lotes_genera_lote_1():
@@ -20,7 +21,7 @@ def test_crear_licitacion_sin_lotes_genera_lote_1():
     
     assert len(licit.lotes) == 1
     assert licit.lotes[0].num_lote == 1
-    assert licit.lotes[0].a_presentar == False
+    assert not licit.lotes[0].a_presentar
     
 def test_licitacion_importe_a_presentar_suma_solo_lotes_presentables_e_importe_licit_suma_total():
     organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
@@ -83,7 +84,7 @@ def test_set_presentable_cambia_estado_lote():
     )    
     licit.set_presentable(1, True)
     
-    assert licit.lotes[0].a_presentar == True
+    assert licit.lotes[0].a_presentar
     
 def test_set_presentable_da_error_si_no_existe_lote():
     organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
@@ -146,10 +147,80 @@ def test_anular_y_reactivar_cambian_estado_y_realizan_comentario():
     
     licit.anular('Recurso a TARCJA', date(2026, 3, 4))
     
-    assert licit.anulado == True
+    assert licit.anulado
     assert licit.comentarios is not None
     
     licit.reactivar('Denegado recurso', date(2026, 3, 15))
     
-    assert licit.anulado == False
+    assert not licit.anulado
     assert 'reactivación' in licit.comentarios
+    
+def test_set_presentable_false_a_true_añade_evento_lote_marcado():
+    organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
+    
+    lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=False)
+        
+    licit = Licitacion(
+        id_org_licit=organismo_licit.id,
+        num_exped='26/1',
+        titulo='Licitación 1',
+        descripcion='Transporte Escolar',
+        fecha_tope_present=datetime(2026, 3, 15, 23, 59),
+        duracion_contrato=24,
+        anulado=False,
+        prorroga=0,
+        lotes=[lote1],
+    )
+    
+    licit.set_presentable(1, True)
+    events = licit.pull_events()
+    
+    assert len(events) == 1
+    assert isinstance(events[0], LoteMarcadoParaPresentar)
+    
+def test_set_presentable_true_a_false_añade_evento_lote_desmarcado():
+    organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
+    
+    lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=True)
+        
+    licit = Licitacion(
+        id_org_licit=organismo_licit.id,
+        num_exped='26/1',
+        titulo='Licitación 1',
+        descripcion='Transporte Escolar',
+        fecha_tope_present=datetime(2026, 3, 15, 23, 59),
+        duracion_contrato=24,
+        anulado=False,
+        prorroga=0,
+        lotes=[lote1],
+    )
+    
+    licit.set_presentable(1, False)
+    events = licit.pull_events()
+    
+    assert len(events) == 1
+    assert isinstance(events[0], LoteDesmarcadoParaPresentar)
+    
+def test_pull_events_devuelve_lista_de_eventos_y_vacia_original():
+    organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
+    
+    lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=False)
+        
+    licit = Licitacion(
+        id_org_licit=organismo_licit.id,
+        num_exped='26/1',
+        titulo='Licitación 1',
+        descripcion='Transporte Escolar',
+        fecha_tope_present=datetime(2026, 3, 15, 23, 59),
+        duracion_contrato=24,
+        anulado=False,
+        prorroga=0,
+        lotes=[lote1],
+    )
+    
+    licit.set_presentable(1, True)
+    events = licit.pull_events()
+    
+    assert len(events) == 1
+    assert not licit._domain_events
+    
