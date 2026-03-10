@@ -59,6 +59,8 @@ class RepresentacionEmpresa:
         duplicados = any(a for a, c in conteo.items() if c > 1)
         if duplicados:
             raise ValueError('No se puede incluir el mismo apoderado más de una vez')
+        if self.tipo_apoderamiento == TipoRepresentacion.ADMIN_UNICO and len(self.apoderados) != 1:
+            raise ValueError('Si el tipo de apoderamiento es Administrador Único, debe haber exactamente un apoderado.')
         if self.modo_firma == ModoFirmaRepresentacion.INDIVIDUAL and self.min_firmas_requeridas != 1:
             raise ValueError('Si modo de firma es individual, el número de firmas necesario debe ser uno.')
         if self.modo_firma == ModoFirmaRepresentacion.MANCOMUNADA and self.min_firmas_requeridas < 2:
