@@ -3,12 +3,12 @@ from datetime import datetime, date
 from unittest.mock import Mock, call
 import pytest
 
-from licit.domain.licitacion.models import Licitacion, Lote, OrganismoLicitacion
-from licit.domain.events import (
+from licit.domain.licitacion.models import Licitacion, Lote
+from licit.domain.terceros.models import OrganismoLicitacion
+from licit.domain.licitacion.events import (
     LoteDesmarcadoParaPresentar, 
     LoteMarcadoParaPresentar,
     LicitacionAnulada,
-    LicitacionReactivada,
     DomainEvent,
 )
 from licit.application.services.event_dispatcher import EventDispatcher
