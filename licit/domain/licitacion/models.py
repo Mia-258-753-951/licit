@@ -11,7 +11,7 @@ from licit.domain.licitacion.events import (
     LicitacionAnulada,
     LicitacionReactivada,
 )
-from licit.domain.anexos.models import TipoAnexo, ModoFirmaAnexo
+from licit.domain.anexos.models import TipoAnexo, ModoFirmaAnexo, AnexoPreparado, FirmaEmpresa
 
 # TODOS LOS IMPORTES EXPRESADOS EN CÉNTIMOS DE EURO
 
@@ -130,8 +130,7 @@ class Licitacion:
         if self.anulado:
             raise ValueError("Licitación anulada: no se permite modificar.")
         if self._existe_empresa_en_licitacion(empresa_en_licitacion.empresa_id):
-            raise KeyError('Ya existe esta empresa en la licitación.')
-        
+            raise KeyError('Ya existe esta empresa en la licitación.')        
                             
     def add_lote(self, lote: Lote) -> None:
         """
@@ -259,8 +258,36 @@ class Licitacion:
     def pull_events(self) -> list[DomainEvent]:
         eventos = self._domain_events.copy()
         self._domain_events.clear()
-        return eventos        
+        return eventos
     
-
-    
+    def generar_anexos(self, tipo_anexos: list[TipoAnexo]) -> list[AnexoPreparado]:
+        """
+        Genera lista de AnexoPreparado para esta licitación a partir de una lista de TipoAnexo, 
+        según el modo de firma de cada tipo de anexo y las empresas en la licitación.
+        """
+        anexos = []
         
+        for tipo in tipo_anexos:
+            empresas_firmantes = self.obtener_empresas_firmantes(tipo)
+            
+            if not empresas_firmantes:
+                continue  # Si no hay empresas firmantes para este tipo de anexo, lo saltamos
+            
+            firmas = tuple(
+                FirmaEmpresa(
+                    empresa_id=e.empresa_id, 
+                    representacion_id=e.representacion_id
+                ) 
+                for e in empresas_firmantes
+            )
+            
+            anexos.append(
+                AnexoPreparado(
+                    licitacion_id=self.id,
+                    tipo_anexo_id=tipo.id,
+                    firmas=firmas
+                )
+            )
+        
+        return anexos
+
