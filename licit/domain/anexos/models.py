@@ -11,14 +11,6 @@ class ModoFirmaAnexo(str, Enum):
     CONJUNTO_EMPRESAS = 'conjunto'
     UTE_CONSTITUIDA = 'ute'
 
-@dataclass
-class TipoAnexo:    # representa un anexo del catálogo de anexos(plantilla)
-    codigo: str
-    nombre: str
-    fase: FasesLicitacion
-    modo_firma: ModoFirmaAnexo
-    id: UUID = field(default_factory=uuid4)
-    
 @dataclass(frozen=True) # Value Object que relaciona una empresa con la escritura que se usará para firmar un anexo concreto, se usa en AnexoPreparado
 class FirmaEmpresa:
     empresa_id: UUID
@@ -30,7 +22,7 @@ class AnexoPreparado:
     Representa un anexo concreto que hay que preparar para la licitación.
     """
     licitacion_id: UUID
-    tipo_anexo_id: UUID
+    codigo: str
     firmas: tuple[FirmaEmpresa, ...]  # tuple por inmutable
     generado: bool = False
         

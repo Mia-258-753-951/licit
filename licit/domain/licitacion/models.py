@@ -11,7 +11,8 @@ from licit.domain.licitacion.events import (
     LicitacionAnulada,
     LicitacionReactivada,
 )
-from licit.domain.anexos.models import TipoAnexo, ModoFirmaAnexo, AnexoPreparado, FirmaEmpresa
+from licit.domain.anexos.models import ModoFirmaAnexo, AnexoPreparado, FirmaEmpresa
+from licit.application.anexos.models import AnexoTemplate
 
 # TODOS LOS IMPORTES EXPRESADOS EN CÉNTIMOS DE EURO
 
@@ -192,7 +193,7 @@ class Licitacion:
         else:
             self.comentarios = f'-> Motivo reactivación: {motivo}, fecha reactivación: {fecha.isoformat()}'
             
-    def agregar_empresa(self, empresa_en_licitacion: 'EmpresaEnLicitacion') -> None:
+    def agregar_empresa(self, empresa_en_licitacion: EmpresaEnLicitacion) -> None:
         self._validar_alta_empresa_en_licitacion(empresa_en_licitacion)
         
         if empresa_en_licitacion.rol == RolEmpresa.INDIVIDUAL and self._hay_miembros_ute():
@@ -235,18 +236,18 @@ class Licitacion:
     def obtener_miembros_ute(self) -> list[EmpresaEnLicitacion]:
         return [e for e in self.empresas_en_licitacion if e.rol == RolEmpresa.UTE_MIEMBRO]
     
-    def obtener_empresas_firmantes(self, tipo_anexo: TipoAnexo) -> list[EmpresaEnLicitacion]:
+    def obtener_empresas_firmantes(self, modo_firma: ModoFirmaAnexo) -> list[EmpresaEnLicitacion]:
         """
         Devuelve lista de empresas que deberían firmar un anexo de este tipo, según el modo de firma del anexo.
         * INDIVIDUAL_EMPRESA: Devuelve empresas individuales o miembros de UTE (son aquellos anexos que lo firman las empresas individualmente)
         * CONJUNTO_EMPRESAS: Devuelve solo empresas miembro de UTE (si las hay)
         * UTE_CONSTITUIDA: Devuelve la empresa UTE constituida (si la hay)"""
         
-        if tipo_anexo.modo_firma == ModoFirmaAnexo.INDIVIDUAL_EMPRESA:
+        if modo_firma == ModoFirmaAnexo.INDIVIDUAL_EMPRESA:
             return [e for e in self.empresas_en_licitacion if e.rol in (RolEmpresa.INDIVIDUAL, RolEmpresa.UTE_MIEMBRO)]
-        elif tipo_anexo.modo_firma == ModoFirmaAnexo.CONJUNTO_EMPRESAS:
+        elif modo_firma == ModoFirmaAnexo.CONJUNTO_EMPRESAS:
             return [e for e in self.empresas_en_licitacion if e.rol == RolEmpresa.UTE_MIEMBRO]
-        elif tipo_anexo.modo_firma == ModoFirmaAnexo.UTE_CONSTITUIDA:
+        elif modo_firma == ModoFirmaAnexo.UTE_CONSTITUIDA:
             ute = self.obtener_ute_constituida()
             if ute is None:
                 raise ValueError('No hay UTE constituida en la licitación, no se pueden obtener empresas firmantes para este modo de firma.')
@@ -260,15 +261,15 @@ class Licitacion:
         self._domain_events.clear()
         return eventos
     
-    def generar_anexos(self, tipo_anexos: list[TipoAnexo]) -> list[AnexoPreparado]:
+    def generar_anexos(self, templates: list[AnexoTemplate]) -> list[AnexoPreparado]:
         """
-        Genera lista de AnexoPreparado para esta licitación a partir de una lista de TipoAnexo, 
-        según el modo de firma de cada tipo de anexo y las empresas en la licitación.
+        Genera lista de AnexoPreparado para esta licitación a partir de una lista de AnexoTemplates, 
+        según el modo de firma de cada template y las empresas en la licitación.
         """
         anexos = []
         
-        for tipo in tipo_anexos:
-            empresas_firmantes = self.obtener_empresas_firmantes(tipo)
+        for template in templates:
+            empresas_firmantes = self.obtener_empresas_firmantes(template.modo_firma)
             
             if not empresas_firmantes:
                 continue  # Si no hay empresas firmantes para este tipo de anexo, lo saltamos
@@ -284,7 +285,7 @@ class Licitacion:
             anexos.append(
                 AnexoPreparado(
                     licitacion_id=self.id,
-                    tipo_anexo_id=tipo.id,
+                    codigo=template.codigo,
                     firmas=firmas
                 )
             )
