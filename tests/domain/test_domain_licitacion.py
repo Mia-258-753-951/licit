@@ -1,10 +1,12 @@
 from datetime import datetime, date
+from pathlib import Path
 from uuid import uuid4
 import pytest
 
 from licit.domain.anexos.models import FasesLicitacion
 from licit.domain.licitacion.models import Licitacion, Lote, EmpresaEnLicitacion, RolEmpresa
-from licit.domain.anexos.models import TipoAnexo, ModoFirmaAnexo, FirmaEmpresa
+from licit.domain.anexos.models import ModoFirmaAnexo, FirmaEmpresa
+from licit.application.anexos.models import AnexoTemplate
 from licit.domain.terceros.models import OrganismoLicitacion
 from licit.domain.licitacion.events import LoteDesmarcadoParaPresentar, LoteMarcadoParaPresentar
 
@@ -130,8 +132,6 @@ def test_set_presentable_true_a_false_añade_evento_lote_desmarcado(licitacion_f
     assert isinstance(events[0], LoteDesmarcadoParaPresentar)
     
 def test_pull_events_devuelve_lista_de_eventos_y_vacia_original(licitacion_factory):
-    organismo_licit = OrganismoLicitacion('Ayuntamiento Almería')
-    
     lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=False)
         
     licit = licitacion_factory(lotes=[lote1])
@@ -296,13 +296,13 @@ def test_obtener_empresas_firmantes_segun_modo_firma_anexo(licitacion_factory, e
     licit.agregar_empresa(empresa_en_licitacion2)
     licit.agregar_empresa(empresa_en_licitacion3)
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.CONJUNTO_EMPRESAS,
+        template_path=Path('anexos/AnexoI.docx')
     )
-    empresas_firmantes = licit.obtener_empresas_firmantes(anexo)
+    empresas_firmantes = licit.obtener_empresas_firmantes(anexo.modo_firma)
     
     assert len(empresas_firmantes) == 2
     assert empresa_en_licitacion1 in empresas_firmantes
@@ -362,14 +362,14 @@ def test_obtener_empresas_firmantes_devuelve_ute_si_hay_ute_constituida_y_lanza_
     licit.agregar_empresa(empresa_en_licitacion1)
     licit.agregar_empresa(empresa_en_licitacion2)
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.UTE_CONSTITUIDA,
+        template_path=Path('anexos/AnexoI.docx')
     )
     
-    assert licit.obtener_empresas_firmantes(anexo) == [empresa_en_licitacion2]
+    assert licit.obtener_empresas_firmantes(anexo.modo_firma) == [empresa_en_licitacion2]
     
     licit.quitar_empresa(empresa_en_licitacion2.empresa_id)
     
@@ -381,13 +381,13 @@ def test_obtener_empresas_firmantes_devuelve_lista_vacía_si_no_hay_empresas_fir
     
     licit = licitacion_factory(lotes=[lote1])
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.CONJUNTO_EMPRESAS,
+        template_path=Path('anexos/AnexoI.docx')
     )
-    assert licit.obtener_empresas_firmantes(anexo) == []
+    assert licit.obtener_empresas_firmantes(anexo.modo_firma) == []
     
 def test_obtener_empresas_firmantes_con_modo_firma_individual_devuelve_todas_las_empresas_menos_ute_constituida(licitacion_factory, empresa_factory):
     lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=True)
@@ -406,19 +406,19 @@ def test_obtener_empresas_firmantes_con_modo_firma_individual_devuelve_todas_las
     licit.agregar_empresa(empresa_en_licitacion2)
     licit.agregar_empresa(empresa_en_licitacion3)
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.INDIVIDUAL_EMPRESA,
+        template_path=Path('anexos/AnexoI.docx')
     )
     
-    assert licit.obtener_empresas_firmantes(anexo) == [empresa_en_licitacion1, empresa_en_licitacion2]
+    assert licit.obtener_empresas_firmantes(anexo.modo_firma) == [empresa_en_licitacion1, empresa_en_licitacion2]
     
     licit1.agregar_empresa(empresa_en_licitacion4)
     licit1.agregar_empresa(empresa_en_licitacion5)
     
-    assert licit1.obtener_empresas_firmantes(anexo) == [empresa_en_licitacion4, empresa_en_licitacion5]
+    assert licit1.obtener_empresas_firmantes(anexo.modo_firma) == [empresa_en_licitacion4, empresa_en_licitacion5]
     
 def test_generar_anexos_devuelve_lista_de_anexos_con_empresas_firmantes_y_representaciones(licitacion_factory, empresa_factory):
     lote1 = Lote(1, 300000, 'Título1', descripcion='descripción1', a_presentar=True)
@@ -431,18 +431,18 @@ def test_generar_anexos_devuelve_lista_de_anexos_con_empresas_firmantes_y_repres
     licit.agregar_empresa(empresa_en_licitacion1)
     licit.agregar_empresa(empresa_en_licitacion2)
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.UTE_CONSTITUIDA,
+        template_path=Path('anexos/AnexoI.docx')
     )
     
     anexo_preparado = licit.generar_anexos([anexo])
     
     assert len(anexo_preparado) == 1
     assert len(anexo_preparado[0].firmas) == 1
-    assert anexo_preparado[0].tipo_anexo_id == anexo.id
+    assert anexo_preparado[0].codigo == anexo.codigo
     assert anexo_preparado[0].licitacion_id == licit.id
     assert anexo_preparado[0].firmas[0] == FirmaEmpresa(empresa_en_licitacion2.empresa_id, empresa_en_licitacion2.representacion_id)
 
@@ -457,11 +457,11 @@ def test_generar_anexos_devuelve_lista_vacia_si_no_empresas_firmantes(licitacion
     licit.agregar_empresa(empresa_en_licitacion1)
     licit.agregar_empresa(empresa_en_licitacion2)
     
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo='AnexoI',
-        nombre='Anexo I',
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.CONJUNTO_EMPRESAS,
+        template_path=Path('anexos/AnexoI.docx')
     )
     
     anexo_preparado = licit.generar_anexos([anexo])
@@ -475,24 +475,24 @@ def test_generar_anexos_varios_tipos_anexo(licitacion_factory, empresa_factory):
     empresa = empresa_factory(rol=RolEmpresa.INDIVIDUAL)
     licit.agregar_empresa(empresa)
 
-    anexo1 = TipoAnexo(
+    anexo1 = AnexoTemplate(
         codigo="A1",
-        nombre="Anexo 1",
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.INDIVIDUAL_EMPRESA,
+        template_path=Path('anexos/Anexo1.docx')
     )
 
-    anexo2 = TipoAnexo(
+    anexo2 = AnexoTemplate(
         codigo="A2",
-        nombre="Anexo 2",
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.INDIVIDUAL_EMPRESA,
+        template_path=Path('anexos/Anexo2.docx')
     )
 
     anexos = licit.generar_anexos([anexo1, anexo2])
 
     assert len(anexos) == 2
-    assert {a.tipo_anexo_id for a in anexos} == {anexo1.id, anexo2.id}
+    assert {a.codigo for a in anexos} == {anexo1.codigo, anexo2.codigo}
     
 def test_generar_anexos_varias_empresas_firmantes(licitacion_factory, empresa_factory):
     lote1 = Lote(1, 300000, "Título1", descripcion="desc", a_presentar=True)
@@ -503,11 +503,11 @@ def test_generar_anexos_varias_empresas_firmantes(licitacion_factory, empresa_fa
     licit.agregar_empresa(empresa1)
     licit.agregar_empresa(empresa2)
 
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo="A1",
-        nombre="Anexo 1",
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.CONJUNTO_EMPRESAS,
+        template_path=Path('anexos/Anexo1.docx')
     )
 
     anexos = licit.generar_anexos([anexo])
@@ -524,11 +524,11 @@ def test_generar_anexos_conserva_empresa_y_representacion_correcta(licitacion_fa
     empresa = empresa_factory(rol=RolEmpresa.INDIVIDUAL)
     licit.agregar_empresa(empresa)
 
-    anexo = TipoAnexo(
+    anexo = AnexoTemplate(
         codigo="A1",
-        nombre="Anexo 1",
         fase=FasesLicitacion.OFERTA,
         modo_firma=ModoFirmaAnexo.INDIVIDUAL_EMPRESA,
+        template_path=Path('anexos/Anexo1.docx')
     )
 
     anexos = licit.generar_anexos([anexo])
